@@ -84,6 +84,8 @@ def run_parallel_dataDL(software_location,main_flatfile_path,mpi_flatfile_direct
     ## Run on ubuntu (doesn't like thread command)
     mpi='mpiexec -n '+str(ncpus)+'  python '+software_location+'/parallel_data.py parallel_waveformDL '+mpi_flatfile_directory+' '+eventdir_unfiltered+' '+eventdir_filtered+' '+client_name+' '+str(resp_prefilt_0)+' '+str(resp_prefilt_1)+' '+str(respfilt_0)+' '+str(respfilt_1)+' '+str(start_delta)+' '+str(end_delta)+' '+str(fig_x)+' '+str(fig_y)+' '+str(output_directory)
 
+    #mpi='mpirun -n '+str(ncpus)+'  python '+software_location+'/parallel_data.py parallel_waveformDL '+mpi_flatfile_directory+' '+eventdir_unfiltered+' '+eventdir_filtered+' '+client_name+' '+str(resp_prefilt_0)+' '+str(resp_prefilt_1)+' '+str(respfilt_0)+' '+str(respfilt_1)+' '+str(start_delta)+' '+str(end_delta)+' '+str(fig_x)+' '+str(fig_y)+' '+str(output_directory)
+
     print(mpi)
     mpi=split(mpi)
     p=subprocess.Popen(mpi)

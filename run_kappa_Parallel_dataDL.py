@@ -16,14 +16,14 @@ import run_wfDL
 #/home/eking/Documents/internship/datanew/events/
 ####  PATHS  ####
 ## Path to the larger flatfile:
-main_flatfile_path = '/home/eking/Documents/internship/data/flatfile.csv'
+main_flatfile_path = '/home/tnye/kappa/data/flatfiles/main_flatfile.csv'
 ## Path to the mpi flatfile directory
-mpi_flatfile_directory = '/home/eking/Documents/internship/data/mpi_flatfiles'
+mpi_flatfile_directory = '/home/tnye/kappa/data/flatfiles/mpi_flatfiles'
 ## Paths to where the unfiltered and filtered .sac and .png's are saved
-eventdir_unfiltered = '/home/eking/Documents/internship/data/events/unfiltered/'
-eventdir_filtered = '/home/eking/Documents/internship/data/events/filtered/'
+eventdir_unfiltered = '/home/tnye/kappa/data/waveforms/unfiltered/'
+eventdir_filtered = '/home/tnye/kappa/data/waveforms/filtered/'
 ## path to where scripts to run are stored:
-software_location = '/home/eking/Documents/internship/code'
+software_location = '/home/tnye/kappa/eking_code'
 
 ####  PARAMS  ####
 ## Name of the download client
@@ -37,9 +37,9 @@ end_delta = 120    ## Time difference to add to S wave arrival for downloading w
 ## Figure size:
 wf_figure_size = (12,6)
 ## Output directory for the collected flatfiles
-output_directory =  '/home/eking/Documents/internship/data/collected_mpi_flatfiles/'
+output_directory =  '/home/tnye/kappa/data/flatfiles/collected_mpi_flatfiles/'
 ## Number of CPUs to run on
-ncpus=6
+ncpus=16
 
 ###########################################
 

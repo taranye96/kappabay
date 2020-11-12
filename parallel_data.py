@@ -13,8 +13,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     Attempts to download waveforms for record information in each line of 
     latfile_csvpath. Removes instrument response and saves as unfiltered, also
     removes inst. resp and filters and saves in a separate directory for the 
-    event, directory structure supplied as input. Makes a figure of the waveform
-    with theoretical P and S wave arrival times, and outputs new flatfile.
+    event, directory structure supplied as input. Data and plots only saved if
+    SNR >=5.  Makes a figure of the waveform with theoretical P and S wave
+    arrival times, and outputs new flatfile.
     Input:
         mpi_flatfile_directory: String with the directory containing the MPI flatfiles, saved in format "flatfile_{rank}.csv"
         eventdir_unfiltered:    String with the path to the unfiltered event save directory
@@ -41,23 +42,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     import numpy as np
     import csv
     import pandas as pd
-    #%%
-    #data_dir1 = '/home/eking/Documents/internship/data/events/unfiltered/'
-    #data_dir2 = '/home/eking/Documents/internship/data/events/filtered/'
-#    data_dir1 = '/Users/vjs/kappa_sfbay/data/events/unfiltered/'
-#    data_dir2 = '/Users/vjs/kappa_sfbay/data/events/filtered/'
-#    flatfile_path = '/Users/vjs/kappa_sfbay/data/flatfile.csv'
-#    client = Client("NCEDC")
-#    start_td = 30  ## Time difference to subtract from p-wave arrival for downloading waveforms
-#    end_td = 120 ## Time difference to add to S wave arrival for downloading waveforms
-#    ## Filter bottoms to use in prefilt for -
-#    ##  INstrument response ONLY:
-#    resp_only_filtbottom = [0.005,0.006]
-#    ##  Instrument response and filtering
-#    resp_filt_filtbottom = [0.063, 0.28] ## 0.063 just above 16 sec microsiesem, .28 just above 4 sec
-#    ## Figure size:
-#    figure_size = (12,6)
-    
+    from os import path,makedirs
+    import kappa_utils as kutils
+   
     data_dir1 = eventdir_unfiltered
     data_dir2 = eventdir_filtered
     flatfile_path = mpi_flatfile_directory + '/flatfile_' + np.str(rank) + '.csv'
@@ -77,11 +64,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     ## Read in metadata:
     allmetadata = pd.read_csv(flatfile_path)
     
-    #%%
     ## Go through the metadata lines, extract record metadata, download waveforms,
     ##  correct instrument response / filter, make plots + save, save as a SAC in 
     ##  the appropriate directory.
-    #i_line = 2097
     
     ## Start a counter for hte number of lines
     count = 0 
@@ -147,6 +132,8 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         i_network = str(i_network)
         i_station = str(i_station)
         
+        event = 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec
+        
         
     ########################################################################################################################################3
         ## Initiate empty stream obmects for the N and E channels
@@ -161,7 +148,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         ##  and continue...
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
+            print('missed DL record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
         
@@ -178,7 +165,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             ir_stn[0].remove_response(output='VEL',pre_filt=prefilt1) ## The units of data are now Velocity, m/s
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
+            print('missed remove IR record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
         prefilt2 = (resp_filt_filtbottom[0],resp_filt_filtbottom[1], ((samprate/2)-5), (samprate/2)) ## 0.063 just above 16 sec microsiesem, .28 just above 4 sec
@@ -186,38 +173,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             ir_filt_stn[0].remove_response(output='VEL',pre_filt=prefilt2) ## The units of data are now Velocity, m/s
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
+            print('missed remove IR record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
-            
-        ## make and save plot of unfiltered data
-        plt.figure(figsize=figure_size)
-        plt.plot(ir_stn[0].times(),ir_stn[0].data,'g')
-        ## Plot a vertical line for the p-wave arrival
-        plt.axvline(x=start_td)
-        ## Plot a vertical line for the s-wave arrival
-        plt.axvline(x=start_td-sp.seconds)
-        plt.xlabel('Time from ')
-        plt.ylabel('Velocity (m/s)')
-        plt.title('Instrument Response Removed, Unfiltered, \n' + i_network + i_station )
-        plt.savefig(data_dir1 + 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
-        plt.close('all')
-        ir_stn[0].write(data_dir1+'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_'+ i_sec + '.sac',format='SAC')
-        #ffl.append(ir_stn[0])
-        
-        ## make and save plot of filtered data
-        plt.figure(figsize=figure_size)
-        plt.plot(ir_filt_stn[0].times(),ir_filt_stn[0].data,'g')
-        ## Plot a vertical line for the p-wave arrival
-        plt.axvline(x=start_td)
-        ## Plot a vertical line for the s-wave arrival
-        plt.axvline(x=start_td-sp.seconds)
-        plt.xlabel('Time from ')
-        plt.ylabel('Velocity (m/s)')
-        plt.title('Instrument Response Removed, filtered, \n' + i_network +i_station )
-        plt.savefig(data_dir2 + 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
-        plt.close('all')
-        ir_filt_stn[0].write(data_dir2+'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec + '.sac',format='SAC')
         
         
     ######################################################################################################################################################################################
@@ -226,7 +184,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             raw_ste += client.get_waveforms(i_network, i_station, "*", 'HHE', UTCDateTime(i_start), UTCDateTime(i_end), attach_response=True)
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
+            print('missed DL record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
             continue
         ir_ste = raw_ste.copy()
         ir_filt_ste = raw_ste.copy()
@@ -239,7 +197,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             ir_ste[0].remove_response(output='VEL',pre_filt=prefilt1) ## The units of data are now Velocity, m/s
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
+            print('missed remove IR record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
         prefilt2 = (resp_filt_filtbottom[0],resp_filt_filtbottom[1], ((samprate/2)-5), (samprate/2)) ## 0.063 just above 16 sec microsiesem, .28 just above 4 sec
@@ -247,53 +205,102 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             ir_filt_ste[0].remove_response(output='VEL',pre_filt=prefilt2) ## The units of data are now Velocity, m/s
         except:
             nummissed += .5
-            print('missed record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
+            print('missed remove IR record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
-        ## make and save plot of unfiltered data
-        plt.figure(figsize=figure_size)
-        plt.plot(ir_ste[0].times(),ir_ste[0].data,'g')
-        ## Plot a vertical line for the p-wave arrival
-        plt.axvline(x=start_td)
-        ## Plot a vertical line for the s-wave arrival
-        plt.axvline(x=start_td-sp.seconds)
-        plt.xlabel('Time from ')
-        plt.ylabel('Velocity (m/s)')
-        plt.title('Instrument Response Removed, Unfiltered, \n' + i_network + i_station )
-        plt.savefig(data_dir1 + 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
-        plt.close('all')
-        ir_ste[0].write(data_dir1+'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.sac',format='SAC')
-        #ffl.append(ir_stn[0])
         
-        ## make and save plot of filtered data
-        plt.figure(figsize=figure_size)
-        plt.plot(ir_filt_ste[0].times(),ir_filt_ste[0].data,'g')
-        ## Plot a vertical line for the p-wave arrival
-        plt.axvline(x=start_td)
-        ## Plot a vertical line for the s-wave arrival
-        plt.axvline(x=start_td-sp.seconds)
-        plt.xlabel('Time from ')
-        plt.ylabel('Velocity (m/s)')
-        plt.title('Instrument Response Removed, filtered, \n' + i_network + i_station )
-        plt.savefig(data_dir2 + 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
-        plt.close('all')
-        ir_filt_ste[0].write(data_dir2+'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.sac',format='SAC')
         
-        ## Add to arrays for new output file:
-        out_network = np.append(out_network,i_network)
-        out_station = np.append(out_station,i_station)
-        out_stlat = np.append(out_stlat,i_stlat)
-        out_stlon = np.append(out_stlon,i_stlon)
-        out_stelv = np.append(out_stelv,i_stelv)
-        out_quakenum = np.append(out_quakenum,i_eventnum)
-        out_m = np.append(out_m,i_m)
-        out_qlat = np.append(out_qlat,i_qlat)
-        out_qlon = np.append(out_qlon,i_qlon)
-        out_qdep = np.append(out_qdep,i_qdep)
-        out_orgt = np.append(out_orgt,i_origintime)
-        out_rhyp = np.append(out_rhyp,i_rhyp)
-        out_parr = np.append(out_parr,i_parr)
-        out_sarr = np.append(out_sarr,i_sarr)
+    ######################################################################################################################################################################################
+        ## Calculate SNR and only save waveforms and plots if it's >= 5.
+        SNR_N = kutils.comp_SNR(ir_filt_stn, 10, 30, 15)
+        SNR_E = kutils.comp_SNR(ir_filt_ste, 10, 30, 15)
+        SNR_avg = (SNR_N + SNR_E)/2
+        
+        print(f'SNR for {i_station} {i_eventnum} is {SNR_avg}') 
+
+        if SNR_avg >=5:
+            
+            ## Make sure paths exist
+            if not path.exists(data_dir1+event):
+                makedirs(data_dir1+event)
+            if not path.exists(data_dir2+event):
+                makedirs(data_dir2+event)
+            
+            ### North component 
+            ## make and save plot of unfiltered data
+            plt.figure(figsize=figure_size)
+            plt.plot(ir_stn[0].times(),ir_stn[0].data,'g')
+            ## Plot a vertical line for the p-wave arrival
+            plt.axvline(x=start_td)
+            ## Plot a vertical line for the s-wave arrival
+            plt.axvline(x=start_td-sp.seconds)
+            plt.xlabel('Time from ')
+            plt.ylabel('Velocity (m/s)')
+            plt.title('Instrument Response Removed, Unfiltered, \n' + i_network + i_station )
+            plt.savefig(data_dir1+event+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
+            plt.close('all')
+            ir_stn[0].write(data_dir1+event+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_'+ i_sec + '.sac',format='SAC')
+            #ffl.append(ir_stn[0])
+            
+            ## make and save plot of filtered data
+            plt.figure(figsize=figure_size)
+            plt.plot(ir_filt_stn[0].times(),ir_filt_stn[0].data,'g')
+            ## Plot a vertical line for the p-wave arrival
+            plt.axvline(x=start_td)
+            ## Plot a vertical line for the s-wave arrival
+            plt.axvline(x=start_td-sp.seconds)
+            plt.xlabel('Time from ')
+            plt.ylabel('Velocity (m/s)')
+            plt.title('Instrument Response Removed, filtered, \n' + i_network +i_station )
+            plt.savefig(data_dir2+event+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
+            plt.close('all')
+            ir_filt_stn[0].write(data_dir2+event+'/'+i_network+'_'+i_station+'_'+'HHN'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec + '.sac',format='SAC')
+            
+            ### East component 
+            ## make and save plot of unfiltered data
+            plt.figure(figsize=figure_size)
+            plt.plot(ir_ste[0].times(),ir_ste[0].data,'g')
+            ## Plot a vertical line for the p-wave arrival
+            plt.axvline(x=start_td)
+            ## Plot a vertical line for the s-wave arrival
+            plt.axvline(x=start_td-sp.seconds)
+            plt.xlabel('Time from ')
+            plt.ylabel('Velocity (m/s)')
+            plt.title('Instrument Response Removed, Unfiltered, \n' + i_network + i_station )
+            plt.savefig(data_dir1+event+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
+            plt.close('all')
+            ir_ste[0].write(data_dir1+event+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.sac',format='SAC')
+            #ffl.append(ir_stn[0])
+            
+            ## make and save plot of filtered data
+            plt.figure(figsize=figure_size)
+            plt.plot(ir_filt_ste[0].times(),ir_filt_ste[0].data,'g')
+            ## Plot a vertical line for the p-wave arrival
+            plt.axvline(x=start_td)
+            ## Plot a vertical line for the s-wave arrival
+            plt.axvline(x=start_td-sp.seconds)
+            plt.xlabel('Time from ')
+            plt.ylabel('Velocity (m/s)')
+            plt.title('Instrument Response Removed, filtered, \n' + i_network + i_station )
+            plt.savefig(data_dir2+event+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.png')
+            plt.close('all')
+            ir_filt_ste[0].write(data_dir2+event+'/'+i_network+'_'+i_station+'_'+'HHE'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+ '_' + i_sec +'.sac',format='SAC')
+            
+            ## Add to arrays for new output file:
+            out_network = np.append(out_network,i_network)
+            out_station = np.append(out_station,i_station)
+            out_stlat = np.append(out_stlat,i_stlat)
+            out_stlon = np.append(out_stlon,i_stlon)
+            out_stelv = np.append(out_stelv,i_stelv)
+            out_quakenum = np.append(out_quakenum,i_eventnum)
+            out_m = np.append(out_m,i_m)
+            out_qlat = np.append(out_qlat,i_qlat)
+            out_qlon = np.append(out_qlon,i_qlon)
+            out_qdep = np.append(out_qdep,i_qdep)
+            out_orgt = np.append(out_orgt,i_origintime)
+            out_rhyp = np.append(out_rhyp,i_rhyp)
+            out_parr = np.append(out_parr,i_parr)
+            out_sarr = np.append(out_sarr,i_sarr)
     
     ## Make new dataframe and flatfile with output arrays:
     ## Dict:
