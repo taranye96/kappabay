@@ -4,68 +4,99 @@
 Created on Wed Aug 14 11:56:54 2019
 
 @author: eking
+Revised by: Tara Nye
+
+Cuts waveforms to 15 
 """
 
+# Standard Library Imports 
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-from matplotlib.transforms import offset_copy
-import cartopy.io.img_tiles as cimgt
-from cartopy import config
-import cartopy.crs as ccrs
-import cartopy.feature as feature
-from obspy.core.utcdatetime import UTCDateTime
-import obspy
+from glob import glob
+from os import path, makedirs
 import datetime
-from datetime import datetime, timedelta
-import pytz
-import dateutil.parser
-import seaborn as sns; sns.set(style="white", color_codes=True)
-import glob
-import os
-import os.path as path
-import time
+# Local Imports
 import kappa_utils as ku
 
 
-#%%
+################################ Parameters ###################################
 
-working_dir = '/home/eking/Documents/internship/data/Kappa/SNR_5'
+# Working Directory 
+working_dir = '/Users/tnye/kappa/data/waveforms'
 
-#path to corrected seismograms
-event_dirs = glob.glob(working_dir + '/waveforms/Event_*')
-cutstart = 30
-cutlength = 60
-outpath = working_dir + '/cutWF_' + np.str(cutlength)
+# Main flatfile for events and stations
+main_df = pd.read_csv('/Users/tnye/kappa/data/flatfiles/SNR_5_file.csv')
 
+# Path to corrected seismograms
+event_dirs = glob(working_dir + '/filtered/Event_*')
+
+# Path to save cut waveforms
+outpath = working_dir + '/cutWF_15'
+
+# S-wave velocity (km/s)
+Vs = 3.1 
+
+# Number of seconds before and after the S-arrival to cut the record to
+cutstart = 5
+cutend = 15
+
+
+############################### Cut waveforms #################################
+
+# Get list of events 
 events = []
 for i in range(len(event_dirs)):
     events.append(path.basename(event_dirs[i]))
+
+# Make directories for cut waveforms for each event  
 for i in range(len(events)):
     if not path.exists(outpath + '/' + events[i]):
-        os.makedirs(outpath + '/'  + events[i])
+        makedirs(outpath + '/'  + events[i])
 
-for i in range(len(event_dirs)):
-    t1 = time.time()
-    event = events[i][6:]
-    print(i)
-    print('cutting: '+ event)
-    recordpaths = glob.glob(working_dir + '/waveforms/Event_' + event +'/*_*_HHN_' + event + '.sac')#full path for only specified channel
+# Loop through events 
+for event in events:
+    
+    # Get list of records for this event
+        # Just need one component because this is to get the list of stations
+        # that recorded this event 
+    recordpaths = glob(working_dir + '/filtered/' + event + '/*' + '_HHE*.sac')
+    
+    # Get event time
+    yyyy, mth, dd, hr, mm, sec = event.split('_')[1:]
+    event_time = f'{yyyy}_{mth}_{dd}_{hr}_{mm}_{sec}'
+    
+    # Get stations that recorded this event 
     stns = [(x.split('/')[-1]).split('_')[1] for x in recordpaths]
-    print(stns)
+    
+    # Loop through stations 
     for j in range(len(stns)):
-        recordpath_E = glob.glob(working_dir + '/waveforms/Event_' + event +'/*_' + stns[j] + '_HHE_' + event + '.sac')
-        recordpath_N = glob.glob(working_dir + '/waveforms/Event_' + event +'/*_' + stns[j] + '_HHN_' + event + '.sac')
-        if(len(recordpath_E) == 1 and len(recordpath_N) == 1):
-            #North component
+        
+        # Get North and East components 
+        recordpath_N = glob(working_dir + '/filtered/' + event + '/*_' + stns[j] + '_HHN_' + event_time + '.sac')
+        recordpath_E = glob(working_dir + '/filtered/' + event + '/*_' + stns[j] + '_HHE_' + event_time + '.sac')
+       
+        # Check that both a North and East component exist 
+        if(len(recordpath_N) == 1 and len(recordpath_E) == 1):
             
-            outpath_E = recordpath_E[0].replace('waveforms','cutWF_' + np.str(cutlength))
+            # Get hypocentral distance (km)
+            stn_ind = np.where(main_df['Name']==stns[j])[0][0]
+            rhyp = main_df['rhyp'].iloc[stn_ind]
             
-            ku.cut_swave(recordpath_E[0], outpath_E, cutstart, cutlength)
+            # Get origin time
+            orig = datetime.datetime(int(yyyy),int(mth),int(dd),int(hr),int(mm),int(sec))
             
+            # Calc S-wave arrival time in seconds after origin time 
+            stime = rhyp/Vs
             
-            outpath_N = recordpath_N[0].replace('waveforms','cutWF_' + np.str(cutlength))
+            # Calc S-wave arrival time as a datetime object
+            Sarriv = orig + datetime.timedelta(0,stime)
             
-            ku.cut_swave(recordpath_N[0], outpath_N, cutstart, cutlength)
-            
+            # Cut North component
+            outpath_N = recordpath_N[0].replace('filtered','cutWF_' + np.str(cutend))
+            ku.cut_swave(recordpath_N[0], outpath_N, Sarriv, cutstart, cutend)
+             
+            # Cut East component
+            outpath_E = recordpath_E[0].replace('filtered','cutWF_' + np.str(cutend))
+            ku.cut_swave(recordpath_E[0], outpath_E, Sarriv, cutstart, cutend)
+    
     
