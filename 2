@@ -43,12 +43,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     import csv
     import pandas as pd
     from os import path,makedirs
+    import sys
     import kappa_utils as kutils
    
-    # InitializeLog file for data with unequal HHN and HHE lengths
-    log = '/home/tnye/kappa/data/record_length.log'
-    f = open(log,'w+')
-
     data_dir1 = eventdir_unfiltered
     data_dir2 = eventdir_filtered
     flatfile_path = mpi_flatfile_directory + '/flatfile_' + np.str(rank) + '.csv'
@@ -63,7 +60,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     ## Figure size:
     figure_size = (fig_x,fig_y)
     
-    print('\n')
+    print(sys.path)
     
     ## Read in metadata:
     allmetadata = pd.read_csv(flatfile_path)
@@ -95,6 +92,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     out_parr = np.array([])
     out_sarr = np.array([])
 
+    
     ## Loop over the lines in the given file 
     for i_line in range(len(allmetadata)):
         
@@ -112,15 +110,13 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         i_date,i_time = allmetadata.loc[i_line]['OrgT'].split(' ')
         i_year,i_month,i_day = i_date.split('-')
         i_hr,i_min,i_sec = i_time.split(':')
-       # try:
-           # print(f'Origin = {i_origintime}... Try:')
-           # i_sec,_ = i_sec.split('.')
-       # except:
-            #print(f'Origin = {i_origintime}... Except:')
-           # continue
+        try:
+            i_sec,_ = i_sec.split('.')
+        except:
+            continue
         
-        i_parr = allmetadata.loc[i_line]['Parr']
-        i_sarr =  allmetadata.loc[i_line]['Sarr']
+        i_parr,_ = allmetadata.loc[i_line]['Parr'].split('.')
+        i_sarr,_ =  allmetadata.loc[i_line]['Sarr'].split('.')
         i_network = allmetadata.loc[i_line]['Network']
         i_Parr = datetime.strptime(i_parr,"%Y-%m-%d %H:%M:%S")
         i_Sarr =datetime.strptime(i_sarr,"%Y-%m-%d %H:%M:%S")
@@ -136,8 +132,9 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         i_end = i_start + timedelta(seconds=end_td)
         i_network = str(i_network)
         i_station = str(i_station)
-
+        
         event = 'Event'+'_'+i_year+'_'+i_month+'_'+i_day+'_'+i_hr+'_'+i_min+'_'+i_sec
+  
         
     ########################################################################################################################################3
         ## Initiate empty stream obmects for the N and E channels
@@ -146,14 +143,14 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         
         ## Try to download data for the N channel - if it works, add it to the N 
         ##  stream object
-#        print(f'searching for {i_network} {i_station} HNN event {i_eventnum} on rank {rank}')
+        print(f'searching for {i_network} {i_station} HNN event {eventnum} on rank {rank}')
         try:
             raw_stn += client.get_waveforms(i_network, i_station, "*", 'HHN', UTCDateTime(i_start), UTCDateTime(i_end), attach_response=True)
         ## If it's missed, add 0.5 to the missed number (half a channel missing),
         ##  and continue...
         except:
             nummissed += .5
-            #print('missed DL record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
+            #print('...missed record for network ' + i_network + ', station ' + i_station + ' on channel HHN, event ' + np.str(i_eventnum))
             ## continue to next line of loop (i_line)
             continue
         
@@ -166,6 +163,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         samprate = ir_stn[0].stats['sampling_rate']
         ## Make the prefilt for the instrment response - 1/2 sampling rate is nyquist
         prefilt1 = (resp_only_filtbottom[0], resp_only_filtbottom[1], ((samprate/2)-5), (samprate/2))  ## this is 20 to 25 at the end
+        print(f'...removing IR for {i_network} {i_station} HNN event {eventnum} on rank {rank}')
         try:
             ir_stn[0].remove_response(output='VEL',pre_filt=prefilt1) ## The units of data are now Velocity, m/s
         except:
@@ -185,12 +183,12 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         
     ######################################################################################################################################################################################
         ## Try to download for the E channel - if it works, do same as above
-#        print(f'searching for {i_network} {i_station} HNE event {i_eventnum} on rank {rank}')
+        print(f'searching for {i_network} {i_station} HNE event {eventnum} on rank {rank}')
         try:
             raw_ste += client.get_waveforms(i_network, i_station, "*", 'HHE', UTCDateTime(i_start), UTCDateTime(i_end), attach_response=True)
         except:
             nummissed += .5
-            #print('missed DL record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
+            print('missed DL record for network ' + i_network + ', station ' + i_station + ' on channel HHE, event ' + np.str(i_eventnum))
             continue
         ir_ste = raw_ste.copy()
         ir_filt_ste = raw_ste.copy()
@@ -199,6 +197,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
         samprate = ir_ste[0].stats['sampling_rate']
         ## Make the prefilt for the instrment response - AT.SIT is @ 50Hz so 25 is nyquist
         prefilt1 = (resp_only_filtbottom[0], resp_only_filtbottom[1], ((samprate/2)-5), (samprate/2))  ## this is 20 to 25 at the end
+        print(f'...removing IR for {i_network} {i_station} HNE event {eventnum} on rank {rank}')
         try:
             ir_ste[0].remove_response(output='VEL',pre_filt=prefilt1) ## The units of data are now Velocity, m/s
         except:
@@ -215,19 +214,15 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
             ## continue to next line of loop (i_line)
             continue
         
-        if len(raw_stn[0].data) != len(raw_ste[0].data):
-            print('Length HHN != Length HHE')
-            print(f'\t{i_network} {i_station}')
-            print(f'\t{event}')
-            f.write(f'{i_network} {i_station} {event}\n')
-
+        
     ######################################################################################################################################################################################
-        ## Calculate SNR and only save waveforms and plots if it's >= 5. 
+        ## Calculate SNR and only save waveforms and plots if it's >= 5.
+        print(f'......calculating SNR for {i_network} {i_station} event {eventnum} on rank {rank}') 
         SNR_N = kutils.comp_SNR(ir_filt_stn, 10, 30, 15)
         SNR_E = kutils.comp_SNR(ir_filt_ste, 10, 30, 15)
         SNR_avg = (SNR_N + SNR_E)/2
         
-#        print(f'SNR for {i_network} {i_station} {i_eventnum} is {SNR_avg} on rank {rank}') 
+        #print(f'SNR for {i_station} {i_eventnum} is {SNR_avg}') 
 
         if SNR_avg >=5:
             
@@ -323,8 +318,7 @@ def parallel_waveformDL(mpi_flatfile_directory,eventdir_unfiltered,eventdir_filt
     ## Write to file:
     collected_df.to_csv(output_directory+'collected_flatfile+'+np.str(rank)+'.csv')
     
-    f.close()
-
+    
     ## Print out the total number of missed recordings:
     #print(nummissed)
   

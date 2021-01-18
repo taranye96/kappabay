@@ -162,11 +162,11 @@ def comp_SNR(stream, noisedur, sigstart, sigdur):
     # find indecies
     noise_ind = np.where((time<=noiseend) & (time>=noisestart))[0]
     noise_amp = data[noise_ind]
-    noise_avg = float(np.mean(np.abs(noise_amp)))
+    noise_avg = float(np.std(noise_amp))
     
     sig_ind = np.where((time<=sigend) & (time>=sigstart))[0]
     sig_amp = data[sig_ind]
-    sig_avg = float(np.mean(np.abs(sig_amp)))
+    sig_avg = float(np.std(sig_amp))
     
     if noise_avg == 0:
         noise_avg = 1E-10

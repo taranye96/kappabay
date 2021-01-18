@@ -16,14 +16,15 @@ import run_wfDL
 #/home/eking/Documents/internship/datanew/events/
 ####  PATHS  ####
 ## Path to the larger flatfile:
-main_flatfile_path = '/home/tnye/kappa/data/flatfiles/main_flatfile.csv'
+#main_flatfile_path = '/home/tnye/kappa/data/flatfiles/main_flatfile.csv'
+main_flatfile_path = '/home/tnye/kappa/data/flatfiles/SNR_5_file.csv'
 ## Path to the mpi flatfile directory
 mpi_flatfile_directory = '/home/tnye/kappa/data/flatfiles/mpi_flatfiles'
 ## Paths to where the unfiltered and filtered .sac and .png's are saved
 eventdir_unfiltered = '/home/tnye/kappa/data/waveforms/unfiltered/'
 eventdir_filtered = '/home/tnye/kappa/data/waveforms/filtered/'
 ## path to where scripts to run are stored:
-software_location = '/home/tnye/kappa/eking_code'
+software_location = '/home/tnye/kappa/kappabay'
 
 ####  PARAMS  ####
 ## Name of the download client
